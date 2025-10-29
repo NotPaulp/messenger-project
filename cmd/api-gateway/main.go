@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"messenger-project/pkg/config"
+	"messenger-project/pkg/logger"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,6 +15,9 @@ import (
 )
 
 func main() {
+	cfg := config.Load()
+	log := logger.New(cfg.DebugMode)
+
 	router := mux.NewRouter()
 	router.Use(loggingMiddleware)
 	router.HandleFunc("/health", healthHandler).Methods("GET")
@@ -22,7 +27,7 @@ func main() {
 	router.HandleFunc("/api/profile", profileHandler).Methods("GET")
 
 	server := &http.Server{
-		Addr:         ":8080",
+		Addr:         ":" + cfg.ServerPort,
 		Handler:      router,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
@@ -30,10 +35,10 @@ func main() {
 	}
 
 	go func() {
-		log.Println("🚀 API Gateway starting on http://localhost:8080")
-		log.Println("📊 Health check: http://localhost:8080/health")
+		log.Info("🚀 API Gateway starting on http://localhost:%s", cfg.ServerPort)
+		log.Info("📊 Health check: http://localhost:%s/health", cfg.ServerPort)
 		if err := server.ListenAndServe(); err != nil {
-			log.Println("Server error:", err)
+			log.Error("Server error:", err)
 		}
 	}()
 
@@ -41,11 +46,11 @@ func main() {
 	signal.Notify(c, os.Interrupt)
 	<-c
 
-	log.Println("🛑 Shutting down server...")
+	log.Info("🛑 Shutting down server...")
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	server.Shutdown(ctx)
-	log.Println("✅ Server stopped")
+	log.Info("✅ Server stopped")
 }
 
 func loggingMiddleware(next http.Handler) http.Handler {
