@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"messenger-project/internal/handlers/auth"
 	"messenger-project/pkg/config"
 	"messenger-project/pkg/logger"
 	"net/http"
@@ -21,8 +22,8 @@ func main() {
 	router := mux.NewRouter()
 	router.Use(loggingMiddleware)
 	router.HandleFunc("/health", healthHandler).Methods("GET")
-	router.HandleFunc("/api/register", registerHandler).Methods("POST")
-	router.HandleFunc("/api/login", loginHandler).Methods("POST")
+	router.HandleFunc("/api/register", auth.RegisterHandler).Methods("POST")
+	router.HandleFunc("/api/login", auth.LoginHandler).Methods("POST")
 	router.HandleFunc("/api/messages", messagesHandler).Methods("GET")
 	router.HandleFunc("/api/profile", profileHandler).Methods("GET")
 

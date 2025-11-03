@@ -1,0 +1,84 @@
+package auth
+
+import (
+	"encoding/json"
+	"messenger-project/internal/auth"
+	"messenger-project/internal/models"
+	"net/http"
+)
+
+func LoginHandler(w http.ResponseWriter, r *http.Request) {
+	if !checkHTTPMethod(w, r, http.MethodPost) {
+		return
+	}
+	if !checkHTTPContentType(w, r, "application/json") {
+		return
+	}
+
+	var req models.LoginRequest
+	if !decodeRequest(w, r, &req) {
+		return
+	}
+	if !validateLoginRequest(w, &req) {
+		return
+	}
+
+	user, err := getUserByUsername(req.Username)
+	if err != nil {
+		http.Error(w, "Error while getting the user out of the database", http.StatusInternalServerError)
+		return
+	}
+	if user == nil {
+		http.Error(w, "Invalid username or password", http.StatusUnauthorized)
+		return
+	}
+
+	if !auth.CheckPasswordHash(req.Password, user.Password) {
+		http.Error(w, "Invalid username or password", http.StatusUnauthorized)
+		return
+	}
+
+	token, err := auth.GenerateToken(user.ID, user.Username)
+	if err != nil {
+		http.Error(w, "Failed to generate JWT token", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message": "User authenticated successfully",
+		"token":   token,
+		"user": models.User{
+			ID:       user.ID,
+			Username: user.Username,
+			Email:    user.Email,
+		},
+	})
+}
+
+func getUserByUsername(username string) (*models.User, error) {
+	// TODO: Реализовать обращение к базе данных
+	// Это будет в пакете repository
+	hashedPassword, _ := auth.HashPassword("123")
+	user := &models.User{
+		ID:       "1",
+		Username: "Pavel",
+		Email:    "pavel@email.com",
+		Password: hashedPassword,
+	}
+	return user, nil
+}
+
+func validateLoginRequest(w http.ResponseWriter, req *models.LoginRequest) bool {
+
+	if req.Username == "" && req.Email == "" {
+		http.Error(w, "Username or email is required", http.StatusBadRequest)
+		return false
+	}
+	if req.Password == "" {
+		http.Error(w, "Password is required", http.StatusBadRequest)
+		return false
+	}
+	return true
+}
