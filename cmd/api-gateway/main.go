@@ -52,8 +52,8 @@ func main() {
 	}
 
 	go func() {
-		log.Info("🚀 API Gateway starting on http://localhost:%s", cfg.ServerPort)
-		log.Info("📊 Health check: http://localhost:%s/health", cfg.ServerPort)
+		log.Info("API Gateway starting on http://localhost:%s", cfg.ServerPort)
+		log.Info("Health check: http://localhost:%s/health", cfg.ServerPort)
 		if err := server.ListenAndServe(); err != nil {
 			log.Error("Server error:", err)
 		}
@@ -63,11 +63,11 @@ func main() {
 	signal.Notify(c, os.Interrupt)
 	<-c
 
-	log.Info("🛑 Shutting down server...")
+	log.Info("Shutting down server...")
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	server.Shutdown(ctx)
-	log.Info("✅ Server stopped")
+	log.Info("Server stopped")
 }
 
 func loggingMiddleware(next http.Handler) http.Handler {
