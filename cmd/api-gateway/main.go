@@ -26,7 +26,7 @@ func main() {
 	if err != nil {
 		log.Error("DB Error:", err)
 		os.Exit(1)
-	} else {
+	} else {?
 		defer db.Close()
 	}
 
