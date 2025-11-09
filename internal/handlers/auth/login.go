@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"messenger-project/internal/auth"
 	"messenger-project/internal/models"
+	"messenger-project/internal/repository"
 	"net/http"
 )
 
@@ -23,7 +24,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := getUserByUsername(req.Username)
+	user, err := repository.GetUserByUsername(req.Username)
 	if err != nil {
 		http.Error(w, "Error while getting the user out of the database", http.StatusInternalServerError)
 		return
@@ -46,7 +47,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]any{
 		"message": "User authenticated successfully",
 		"token":   token,
 		"user": models.User{
@@ -55,19 +56,6 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 			Email:    user.Email,
 		},
 	})
-}
-
-func getUserByUsername(username string) (*models.User, error) {
-	// TODO: Реализовать обращение к базе данных
-	// Это будет в пакете repository
-	hashedPassword, _ := auth.HashPassword("123")
-	user := &models.User{
-		ID:       "1",
-		Username: "Pavel",
-		Email:    "pavel@email.com",
-		Password: hashedPassword,
-	}
-	return user, nil
 }
 
 func validateLoginRequest(w http.ResponseWriter, req *models.LoginRequest) bool {

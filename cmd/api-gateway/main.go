@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"messenger-project/internal/database"
 	"messenger-project/internal/handlers/auth"
+	"messenger-project/internal/redis"
 	"messenger-project/pkg/config"
 	"messenger-project/pkg/logger"
 	"net/http"
@@ -13,17 +15,31 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	_ "github.com/lib/pq"
 )
 
 func main() {
 	cfg := config.Load()
 	log := logger.New(cfg.DebugMode)
 
+	db, err := database.InitPostgres()
+	if err != nil {
+		log.Error("DB Error:", err)
+		os.Exit(1)
+	} else {
+		defer db.Close()
+	}
+
+	database.CreateTableUsers(db)
+
+	redis.Init()
+
 	router := mux.NewRouter()
 	router.Use(loggingMiddleware)
 	router.HandleFunc("/health", healthHandler).Methods("GET")
 	router.HandleFunc("/api/register", auth.RegisterHandler).Methods("POST")
 	router.HandleFunc("/api/login", auth.LoginHandler).Methods("POST")
+	router.HandleFunc("/api/logout", auth.LogoutHandler).Methods("POST")
 	router.HandleFunc("/api/messages", messagesHandler).Methods("GET")
 	router.HandleFunc("/api/profile", profileHandler).Methods("GET")
 
@@ -63,7 +79,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
-	jsonResponse(w, http.StatusOK, map[string]interface{}{
+	jsonResponse(w, http.StatusOK, map[string]any{
 		"status":    "healthy",
 		"service":   "api-gateway",
 		"timestamp": time.Now().Format(time.RFC3339),
@@ -71,29 +87,15 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func registerHandler(w http.ResponseWriter, r *http.Request) {
-	jsonResponse(w, http.StatusOK, map[string]interface{}{
-		"message": "Registration endpoint - TODO: implement",
-		"status":  "success",
-	})
-}
-
-func loginHandler(w http.ResponseWriter, r *http.Request) {
-	jsonResponse(w, http.StatusOK, map[string]interface{}{
-		"message": "Login endpoint - TODO: implement",
-		"status":  "success",
-	})
-}
-
 func messagesHandler(w http.ResponseWriter, r *http.Request) {
-	jsonResponse(w, http.StatusOK, map[string]interface{}{
+	jsonResponse(w, http.StatusOK, map[string]any{
 		"messages": []string{},
 		"message":  "Messages endpoint - TODO: implement",
 	})
 }
 
 func profileHandler(w http.ResponseWriter, r *http.Request) {
-	jsonResponse(w, http.StatusOK, map[string]interface{}{
+	jsonResponse(w, http.StatusOK, map[string]any{
 		"user":    "unknown",
 		"message": "Profile endpoint - TODO: implement",
 	})

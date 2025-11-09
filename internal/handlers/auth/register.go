@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"messenger-project/internal/auth"
 	"messenger-project/internal/models"
+	"messenger-project/internal/repository"
+	"messenger-project/pkg/utils"
 	"net/http"
 	"time"
 )
@@ -20,7 +22,18 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	if !decodeRequest(w, r, &req) {
 		return
 	}
-	if !validateRegisterRequest(w, &req) {
+	if req.Username == "" {
+		http.Error(w, "Username is required", http.StatusBadRequest)
+		return
+	}
+	if !utils.IsValidEmail(req.Email) {
+		http.Error(w, "Invalid email format", http.StatusBadRequest)
+		return
+	}
+
+	vulnerabilityMessage := utils.CheckPasswordVulnerabilities(req.Password)
+	if vulnerabilityMessage != "" {
+		http.Error(w, vulnerabilityMessage, http.StatusBadRequest)
 		return
 	}
 
@@ -39,9 +52,15 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt: time.Now(),
 	}
 
+	err = repository.CreateUser(&user)
+	if err != nil {
+		http.Error(w, "Error creating user: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]any{
 		"message": "User registered successfully",
 		"user": models.RegisterResponse{
 			ID:        user.ID,
@@ -50,47 +69,4 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 			CreatedAt: user.CreatedAt,
 		},
 	})
-}
-
-func checkHTTPMethod(w http.ResponseWriter, r *http.Request, method string) bool {
-	if r.Method != method {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return false
-	}
-	return true
-}
-func checkHTTPContentType(w http.ResponseWriter, r *http.Request, contentType string) bool {
-	if r.Header.Get("Content-Type") != contentType {
-		http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType)
-		return false
-	}
-	return true
-}
-
-func decodeRequest(w http.ResponseWriter, r *http.Request, req interface{}) bool {
-	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
-		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
-		return false
-	}
-	return true
-}
-func validateRegisterRequest(w http.ResponseWriter, req *models.RegisterRequest) bool {
-
-	if req.Username == "" {
-		http.Error(w, "Username is required", http.StatusBadRequest)
-		return false
-	}
-	if req.Email == "" {
-		http.Error(w, "Email is required", http.StatusBadRequest)
-		return false
-	}
-	if req.Password == "" {
-		http.Error(w, "Password is required", http.StatusBadRequest)
-		return false
-	}
-	if len(req.Password) < 8 {
-		http.Error(w, "Password must be at least 8 characters", http.StatusBadRequest)
-		return false
-	}
-	return true
 }
