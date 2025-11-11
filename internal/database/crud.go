@@ -42,22 +42,34 @@ func Create(db *sqlx.DB, table string, rowData map[string]any) error {
 	return nil
 }
 
-// DB, "table1", "column1", "1"
-func Read(db *sqlx.DB, table string, column string, value string) ([]map[string]any, error) {
+// DB, "table1", {"column1", "column2"}, {"1", "2"}
+func Read(db *sqlx.DB, table string, columns []string, values []any) ([]map[string]any, error) {
 	if !validName.MatchString(table) {
 		return nil, fmt.Errorf("Invalid table name: %s", table)
 	}
-	if !validName.MatchString(column) {
-		return nil, fmt.Errorf("Invalid column name: %s", column)
+
+	for _, column := range columns {
+		if !validName.MatchString(column) {
+			return nil, fmt.Errorf("Invalid column name: %s", column)
+		}
+	}
+
+	if len(columns) != len(values) {
+		return nil, fmt.Errorf("Mismatched number of columns and values")
+	}
+
+	whereClauses := make([]string, len(columns))
+	for i, col := range columns {
+		whereClauses[i] = fmt.Sprintf("%s = $%d", col, i+1)
 	}
 
 	query := fmt.Sprintf(
-		"SELECT * FROM %s WHERE %s = $1",
+		"SELECT * FROM %s WHERE %s",
 		table,
-		column,
+		strings.Join(whereClauses, " AND "),
 	)
 
-	rows, err := db.Queryx(query, value)
+	rows, err := db.Queryx(query, values...)
 	if err != nil {
 		return nil, err
 	}
