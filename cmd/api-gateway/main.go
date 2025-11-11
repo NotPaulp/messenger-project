@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	middleware "messenger-project/internal/auth"
 	"messenger-project/internal/database"
 	"messenger-project/internal/handlers/auth"
+	"messenger-project/internal/handlers/messages"
 	"messenger-project/internal/redis"
 	"messenger-project/pkg/config"
 	"messenger-project/pkg/logger"
@@ -24,14 +26,14 @@ func main() {
 
 	db, err := database.InitPostgres()
 	if err != nil {
-		log.Error("DB Error:", err)
+		log.Error("DB Error:" + err.Error())
 		os.Exit(1)
-	} else {?
+	} else {
 		defer db.Close()
 	}
 
 	database.CreateTableUsers(db)
-
+	database.CreateTableMessages(db)
 	redis.Init()
 
 	router := mux.NewRouter()
@@ -40,7 +42,8 @@ func main() {
 	router.HandleFunc("/api/register", auth.RegisterHandler).Methods("POST")
 	router.HandleFunc("/api/login", auth.LoginHandler).Methods("POST")
 	router.HandleFunc("/api/logout", auth.LogoutHandler).Methods("POST")
-	router.HandleFunc("/api/messages", messagesHandler).Methods("GET")
+	router.Handle("/api/messages", middleware.Middleware(http.HandlerFunc(messages.SendHandler))).Methods("POST")
+	router.Handle("/api/messages", middleware.Middleware(http.HandlerFunc(messages.GetHandler))).Methods("GET")
 	router.HandleFunc("/api/profile", profileHandler).Methods("GET")
 
 	server := &http.Server{
@@ -55,7 +58,7 @@ func main() {
 		log.Info("API Gateway starting on http://localhost:%s", cfg.ServerPort)
 		log.Info("Health check: http://localhost:%s/health", cfg.ServerPort)
 		if err := server.ListenAndServe(); err != nil {
-			log.Error("Server error:", err)
+			log.Error("Server error:" + err.Error())
 		}
 	}()
 
