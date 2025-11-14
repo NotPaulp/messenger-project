@@ -7,7 +7,9 @@ import (
 	middleware "messenger-project/internal/auth"
 	"messenger-project/internal/database"
 	"messenger-project/internal/handlers/auth"
+	"messenger-project/internal/handlers/comments"
 	"messenger-project/internal/handlers/messages"
+	"messenger-project/internal/handlers/posts"
 	"messenger-project/internal/redis"
 	"messenger-project/pkg/config"
 	"messenger-project/pkg/logger"
@@ -33,8 +35,15 @@ func main() {
 	}
 
 	database.CreateTableUsers(db)
-	database.CreateTableMessages(db)
+	// database.CreateTableMessages(db)
 	redis.Init()
+
+	ctx := context.Background()
+	if err := database.InitMongo(ctx); err != nil {
+		log.Error("Mongo Error: " + err.Error())
+		os.Exit(1)
+	}
+	defer database.DisconnectMongo(ctx)
 
 	router := mux.NewRouter()
 	router.Use(loggingMiddleware)
@@ -44,7 +53,12 @@ func main() {
 	router.HandleFunc("/api/logout", auth.LogoutHandler).Methods("POST")
 	router.Handle("/api/messages", middleware.Middleware(http.HandlerFunc(messages.SendHandler))).Methods("POST")
 	router.Handle("/api/messages", middleware.Middleware(http.HandlerFunc(messages.GetHandler))).Methods("GET")
-	router.HandleFunc("/api/profile", profileHandler).Methods("GET")
+	router.Handle("/api/posts", middleware.Middleware(http.HandlerFunc(posts.PublishPostHandler))).Methods("POST")
+	router.Handle("/api/posts", middleware.Middleware(http.HandlerFunc(posts.GetPostsHandler))).Methods("GET")
+	router.Handle("/api/posts/comments", middleware.Middleware(http.HandlerFunc(comments.PublishCommentHandler))).Methods("POST")
+	router.Handle("/api/posts/comments", middleware.Middleware(http.HandlerFunc(comments.GetCommentsHandler))).Methods("GET")
+
+	//router.HandleFunc("/api/profile", profileHandler).Methods("GET")
 
 	server := &http.Server{
 		Addr:         ":" + cfg.ServerPort,
@@ -87,20 +101,6 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 		"service":   "api-gateway",
 		"timestamp": time.Now().Format(time.RFC3339),
 		"version":   "1.0.0",
-	})
-}
-
-func messagesHandler(w http.ResponseWriter, r *http.Request) {
-	jsonResponse(w, http.StatusOK, map[string]any{
-		"messages": []string{},
-		"message":  "Messages endpoint - TODO: implement",
-	})
-}
-
-func profileHandler(w http.ResponseWriter, r *http.Request) {
-	jsonResponse(w, http.StatusOK, map[string]any{
-		"user":    "unknown",
-		"message": "Profile endpoint - TODO: implement",
 	})
 }
 

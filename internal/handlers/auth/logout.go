@@ -2,21 +2,22 @@ package auth
 
 import (
 	"encoding/json"
+	"messenger-project/internal/handlers/common"
 	"messenger-project/internal/models"
 	"messenger-project/internal/redis"
 	"net/http"
 )
 
 func LogoutHandler(w http.ResponseWriter, r *http.Request) {
-	if !checkHTTPMethod(w, r, http.MethodPost) {
+	if !common.CheckHTTPMethod(w, r, http.MethodPost) {
 		return
 	}
-	if !checkHTTPContentType(w, r, "application/json") {
+	if !common.CheckHTTPContentType(w, r, "application/json") {
 		return
 	}
 
 	var req models.LogoutRequest
-	if !decodeRequest(w, r, &req) {
+	if !common.DecodeRequest(w, r, &req) {
 		return
 	}
 

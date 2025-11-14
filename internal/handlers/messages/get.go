@@ -6,6 +6,7 @@ import (
 	"messenger-project/internal/models"
 	"messenger-project/internal/repository"
 	"net/http"
+	"strings"
 )
 
 func GetHandler(w http.ResponseWriter, r *http.Request) {
@@ -22,13 +23,16 @@ func GetHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req models.GetMessageRequest
-	if !common.DecodeRequest(w, r, &req) {
+	senderUsername := r.URL.Query().Get("sender")
+	allStr := r.URL.Query().Get("all")
+	if senderUsername == "" {
+		http.Error(w, "sender query param is required", http.StatusBadRequest)
 		return
 	}
 
-	if req.All {
-		msgs, err := repository.GetAllMessages(req.SenderUsername, receiverUsername)
+	all := strings.ToLower(allStr) == "true"
+	if all {
+		msgs, err := repository.GetAllMessages(senderUsername, receiverUsername)
 		if err != nil {
 			http.Error(w, "Error retrieving messages: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -40,24 +44,23 @@ func GetHandler(w http.ResponseWriter, r *http.Request) {
 			"message": "Messages retrieved successfully",
 			"msg":     msgs,
 		})
-	} else {
-		msg, err := repository.GetLastMessage(req.SenderUsername, receiverUsername)
-		if err != nil {
-			http.Error(w, "Error retrieving the last message: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]any{
-			"message": "Last message retrieved successfully",
-			"msg": []models.Message{{
-				ID:               msg.ID,
-				SenderUsername:   msg.SenderUsername,
-				ReceiverUsername: msg.ReceiverUsername,
-				Body:             msg.Body,
-				SentAt:           msg.SentAt,
-			}},
-		})
 	}
+	msg, err := repository.GetLastMessage(senderUsername, receiverUsername)
+	if err != nil {
+		http.Error(w, "Error retrieving the last message: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]any{
+		"message": "Last message retrieved successfully",
+		"msg": []models.Message{{
+			ID:               msg.ID,
+			SenderUsername:   msg.SenderUsername,
+			ReceiverUsername: msg.ReceiverUsername,
+			Body:             msg.Body,
+			SentAt:           msg.SentAt,
+		}},
+	})
 }

@@ -3,11 +3,12 @@ services:
   api-gateway:
     build: .
     ports:
-      - "${SERVER_PORT}:${SERVER_PORT}"  
+      - "${SERVER_PORT}:${SERVER_PORT}"
+    depends_on:
+      postgres:
+        condition: service_healthy
     # volumes:
     #   - .:/app
-    depends_on:
-      - postgres
     env_file:
       - .env
 
@@ -19,7 +20,22 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
 
+  mongo:
+    image: mongo:6.0
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: messenger
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27017:27017"
   redis:
     image: redis:7-alpine
     ports:
@@ -30,3 +46,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  mongo_data:

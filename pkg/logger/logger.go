@@ -12,7 +12,6 @@ type Logger struct {
 	debugLog *log.Logger
 }
 
-// New creates a new logger
 func New(debugMode bool) *Logger {
 	flags := log.Ldate | log.Ltime
 
@@ -28,17 +27,14 @@ func New(debugMode bool) *Logger {
 	return logger
 }
 
-// Info logs informational messages
 func (l *Logger) Info(format string, v ...interface{}) {
 	l.infoLog.Printf(format, v...)
 }
 
-// Error logs error messages
 func (l *Logger) Error(format string, v ...interface{}) {
 	l.errorLog.Printf(format, v...)
 }
 
-// Debug logs debug messages (only in debug mode)
 func (l *Logger) Debug(format string, v ...interface{}) {
 	if l.debugLog != nil {
 		l.debugLog.Printf(format, v...)

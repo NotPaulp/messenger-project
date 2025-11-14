@@ -3,23 +3,25 @@ package auth
 import (
 	"encoding/json"
 	"messenger-project/internal/auth"
+	"messenger-project/internal/handlers/common"
 	"messenger-project/internal/models"
 	"messenger-project/internal/repository"
+
 	"messenger-project/pkg/utils"
 	"net/http"
 	"time"
 )
 
 func RegisterHandler(w http.ResponseWriter, r *http.Request) {
-	if !checkHTTPMethod(w, r, http.MethodPost) {
+	if !common.CheckHTTPMethod(w, r, http.MethodPost) {
 		return
 	}
-	if !checkHTTPContentType(w, r, "application/json") {
+	if !common.CheckHTTPContentType(w, r, "application/json") {
 		return
 	}
 
 	var req models.RegisterRequest
-	if !decodeRequest(w, r, &req) {
+	if !common.DecodeRequest(w, r, &req) {
 		return
 	}
 	if req.Username == "" {

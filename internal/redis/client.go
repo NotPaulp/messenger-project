@@ -3,13 +3,18 @@ package redis
 import (
 	"context"
 	"fmt"
-	"messenger-project/internal/auth"
 	"messenger-project/pkg/config"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/redis/go-redis/v9"
 )
+
+type Claims struct {
+	UserID   string
+	Username string
+	jwt.RegisteredClaims
+}
 
 var Client *redis.Client
 var ctx = context.Background() // smth like OS.ENV + expiration time
@@ -36,7 +41,7 @@ func Init() error {
 
 func BlacklistJWT(token string) error {
 	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
-	claims := &auth.Claims{}
+	claims := &Claims{}
 	_, _, err := parser.ParseUnverified(token, claims)
 	if err != nil {
 		return fmt.Errorf("Failed to parse JWT token: %v", err)
@@ -57,7 +62,7 @@ func BlacklistJWT(token string) error {
 
 func IsJWTBlacklisted(token string) (bool, error) {
 	val, err := Client.Get(ctx, token).Result()
-	if err != redis.Nil || err != nil {
+	if err != redis.Nil && err != nil {
 		return false, fmt.Errorf("Error while getting the token out of redis db %v", err)
 	}
 

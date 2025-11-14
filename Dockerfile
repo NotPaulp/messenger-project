@@ -3,11 +3,11 @@ FROM golang:1.25-alpine
 WORKDIR /app
 
 COPY go.mod go.sum ./
-RUN go mod download
+# RUN go mod download
 COPY . .
 
-# RUN go build -o main ./cmd/api-gateway # -o main = output compiled file as main
+RUN go build -mod=vendor -o main ./cmd/api-gateway # -o main = output compiled file as main
 
-# CMD ["./main"]
+CMD ["./main"]
 
-CMD ["sh", "-c", "go run ./cmd/api-gateway"]
+# CMD ["sh", "-c", "go run ./cmd/api-gateway"]
