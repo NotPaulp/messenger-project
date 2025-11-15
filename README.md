@@ -116,7 +116,7 @@ REDIS_PASSWORD=password
 - Валидация email и сложности пароля
 - SQL/Mongo injection protection
 
-## 🗄 Базы данных
+## Базы данных
 
 ### PostgreSQL
 - **Пользователи** - учетные записи и аутентификация
