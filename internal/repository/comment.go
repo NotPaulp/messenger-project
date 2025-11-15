@@ -85,3 +85,42 @@ func GetLastComment(postID int64) (*models.Comment, error) {
 	last := comments[len(comments)-1]
 	return &last, nil
 }
+
+func DeleteComment(postID, commentID int64, username string) error {
+	if database.PostsCollection == nil {
+		return fmt.Errorf("posts collection not initialized")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	filter := bson.M{
+		"id": postID,
+		"comments": bson.M{
+			"$elemMatch": bson.M{
+				"id":              commentID,
+				"author_username": username,
+			},
+		},
+	}
+
+	update := bson.M{
+		"$pull": bson.M{
+			"comments": bson.M{
+				"id":              commentID,
+				"author_username": username,
+			},
+		},
+	}
+
+	result, err := database.PostsCollection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("delete comment: %w", err)
+	}
+
+	if result.ModifiedCount == 0 {
+		return fmt.Errorf("comment not found or you don't have permission to delete it")
+	}
+
+	return nil
+}

@@ -20,3 +20,7 @@ type GetPostRequest struct {
 	AuthorUsername string `json:"author_username"`
 	All            bool   `json:"all"`
 }
+
+type DeletePostRequest struct {
+	PostID int64 `json:"post_id"`
+}

@@ -158,3 +158,29 @@ func GetAllMessages(senderUsername, receiverUsername string) ([]models.Message, 
 // 	}
 // 	return msgs, nil
 // }
+
+// Add to internal/repository/message.go
+func DeleteMessage(messageID int64, username string) error {
+	if database.MessagesCollection == nil {
+		return fmt.Errorf("messages collection not initialized")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	filter := bson.M{
+		"id":              messageID,
+		"sender_username": username,
+	}
+
+	result, err := database.MessagesCollection.DeleteOne(ctx, filter)
+	if err != nil {
+		return fmt.Errorf("delete message: %w", err)
+	}
+
+	if result.DeletedCount == 0 {
+		return fmt.Errorf("message not found or you don't have permission to delete it")
+	}
+
+	return nil
+}

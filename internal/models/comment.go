@@ -21,3 +21,8 @@ type GetCommentRequest struct {
 	AuthorUsername string `json:"author_username"`
 	All            bool   `json:"all"`
 }
+
+type DeleteCommentRequest struct {
+	PostID    int64 `json:"post_id"`
+	CommentID int64 `json:"comment_id"`
+}

@@ -21,3 +21,7 @@ type GetMessageRequest struct {
 	SenderUsername string `json:"sender_username"`
 	All            bool   `json:"all"`
 }
+
+type DeleteMessageRequest struct {
+	MessageID int64 `json:"message_id"`
+}

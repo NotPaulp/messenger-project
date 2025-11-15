@@ -57,7 +57,9 @@ func main() {
 	router.Handle("/api/posts", middleware.Middleware(http.HandlerFunc(posts.GetPostsHandler))).Methods("GET")
 	router.Handle("/api/posts/comments", middleware.Middleware(http.HandlerFunc(comments.PublishCommentHandler))).Methods("POST")
 	router.Handle("/api/posts/comments", middleware.Middleware(http.HandlerFunc(comments.GetCommentsHandler))).Methods("GET")
-
+	router.Handle("/api/messages", middleware.Middleware(http.HandlerFunc(messages.DeleteHandler))).Methods("DELETE")
+	router.Handle("/api/posts", middleware.Middleware(http.HandlerFunc(posts.DeleteHandler))).Methods("DELETE")
+	router.Handle("/api/posts/comments", middleware.Middleware(http.HandlerFunc(comments.DeleteHandler))).Methods("DELETE")
 	//router.HandleFunc("/api/profile", profileHandler).Methods("GET")
 
 	server := &http.Server{

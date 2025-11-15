@@ -23,7 +23,7 @@ func GetPostsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	qAuthor := r.URL.Query().Get("author")
+	qAuthor := r.URL.Query().Get("author_username")
 	if qAuthor == "" {
 		qAuthor = authorUsername
 	}

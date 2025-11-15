@@ -82,3 +82,28 @@ func GetAllPosts(authorUsername string) ([]models.Post, error) {
 	})
 	return results, nil
 }
+
+func DeletePost(postID int64, username string) error {
+	if database.PostsCollection == nil {
+		return fmt.Errorf("posts collection not initialized")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	filter := bson.M{
+		"id":              postID,
+		"author_username": username,
+	}
+
+	result, err := database.PostsCollection.DeleteOne(ctx, filter)
+	if err != nil {
+		return fmt.Errorf("delete post: %w", err)
+	}
+
+	if result.DeletedCount == 0 {
+		return fmt.Errorf("post not found or you don't have permission to delete it")
+	}
+
+	return nil
+}
