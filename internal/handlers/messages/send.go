@@ -3,13 +3,23 @@ package messages
 import (
 	"encoding/json"
 	common "messenger-project/internal/handlers/common"
+	"messenger-project/internal/kafka"
 	"messenger-project/internal/models"
-	"messenger-project/internal/repository"
 	"net/http"
 	"time"
 )
 
-func SendHandler(w http.ResponseWriter, r *http.Request) {
+type MessageHandler struct {
+	producer *kafka.Producer
+}
+
+func NewMessageHandler(producer *kafka.Producer) *MessageHandler {
+	return &MessageHandler{
+		producer: producer,
+	}
+}
+
+func (h *MessageHandler) SendHandler(w http.ResponseWriter, r *http.Request) {
 	senderUsername, ok := r.Context().Value("username").(string)
 	if !ok || senderUsername == "" {
 		http.Error(w, "Unauthorized: username not found in token", http.StatusUnauthorized)
@@ -35,7 +45,7 @@ func SendHandler(w http.ResponseWriter, r *http.Request) {
 		SentAt:           time.Now(),
 	}
 
-	if err := repository.CreateMessage(&msg); err != nil {
+	if err := h.producer.ProduceMessage(r.Context(), &msg); err != nil {
 		http.Error(w, "Error sending the message: "+err.Error(), http.StatusInternalServerError)
 		return
 	}

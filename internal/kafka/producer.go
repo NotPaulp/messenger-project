@@ -17,8 +17,8 @@ type Producer struct {
 
 func NewProducer(cfg *config.Config) *Producer {
 	writer := &kafka.Writer{
-		Addr:         kafka.TCP(cfg.KafkaBrokers),
-		Topic:        cfg.KafkaTopicMessages,
+		Addr:         kafka.TCP(cfg.KAFKA_BROKERS),
+		Topic:        cfg.KAFKA_TOPIC_MESSAGES,
 		Balancer:     &kafka.LeastBytes{},
 		BatchTimeout: 10 * time.Millisecond,
 	}

@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"fmt"
+	"messenger-project/internal/redis"
 	"os"
 	"time"
 
@@ -31,4 +33,32 @@ func GenerateToken(userID, username string) (string, error) {
 	signedToken, err := token.SignedString(jwtSecret)
 
 	return signedToken, err
+}
+
+func ValidateToken(tokenString string) (*Claims, error) {
+	claims := &Claims{}
+
+	token, err := jwt.ParseWithClaims(tokenString, claims,
+		func(t *jwt.Token) (interface{}, error) {
+			return jwtSecret, nil
+		})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse token: %w", err)
+	}
+
+	if !token.Valid {
+		return nil, fmt.Errorf("invalid token")
+	}
+
+	isBlacklisted, err := redis.IsJWTBlacklisted(tokenString)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check token blacklist: %w", err)
+	}
+
+	if isBlacklisted {
+		return nil, fmt.Errorf("token is blacklisted")
+	}
+
+	return claims, nil
 }

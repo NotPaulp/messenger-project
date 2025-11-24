@@ -2,11 +2,8 @@ package auth
 
 import (
 	"context"
-	"messenger-project/internal/redis"
 	"net/http"
 	"strings"
-
-	"github.com/golang-jwt/jwt/v5"
 )
 
 func Middleware(next http.Handler) http.Handler {
@@ -16,25 +13,9 @@ func Middleware(next http.Handler) http.Handler {
 			http.Error(w, "Auth header is missing", http.StatusUnauthorized)
 			return
 		}
-		claims := &Claims{}
-		token, err := jwt.ParseWithClaims(tokenString, claims,
-			func(t *jwt.Token) (interface{}, error) {
-				return jwtSecret, nil
-			})
-
-		if err != nil || !token.Valid {
-			http.Error(w, "Invalid token", http.StatusUnauthorized)
-			return
-		}
-
-		isBlacklisted, err := redis.IsJWTBlacklisted(tokenString)
+		claims, err := ValidateToken(tokenString)
 		if err != nil {
-			http.Error(w, "Internal error"+err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		if isBlacklisted {
-			http.Error(w, "Token is blacklisted", http.StatusUnauthorized)
+			http.Error(w, err.Error(), http.StatusUnauthorized)
 			return
 		}
 		ctx := context.WithValue(r.Context(), "userID", claims.UserID)

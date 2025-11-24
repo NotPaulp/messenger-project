@@ -10,7 +10,9 @@ import (
 	"messenger-project/internal/handlers/comments"
 	"messenger-project/internal/handlers/messages"
 	"messenger-project/internal/handlers/posts"
+	"messenger-project/internal/kafka"
 	"messenger-project/internal/redis"
+	"messenger-project/internal/websocket"
 	"messenger-project/pkg/config"
 	"messenger-project/pkg/logger"
 	"net/http"
@@ -45,14 +47,28 @@ func main() {
 	}
 	defer database.DisconnectMongo(ctx)
 
+	websocketHub := websocket.NewHub()
+	go websocketHub.Run()
+
+	kafkaProducer := kafka.NewProducer(cfg)
+	defer kafkaProducer.Close()
+
+	kafkaConsumer := kafka.NewConsumer(cfg, websocketHub)
+	go kafkaConsumer.Start(context.Background())
+	defer kafkaConsumer.Close()
+
+	messageHandler := messages.NewMessageHandler(kafkaProducer)
+	websocketHandler := messages.NewWebSocketHandler(websocketHub)
+
 	router := mux.NewRouter()
 	router.Use(loggingMiddleware)
 	router.HandleFunc("/health", healthHandler).Methods("GET")
 	router.HandleFunc("/api/register", auth.RegisterHandler).Methods("POST")
 	router.HandleFunc("/api/login", auth.LoginHandler).Methods("POST")
 	router.HandleFunc("/api/logout", auth.LogoutHandler).Methods("POST")
-	router.Handle("/api/messages", middleware.Middleware(http.HandlerFunc(messages.SendHandler))).Methods("POST")
+	router.Handle("/api/messages", middleware.Middleware(http.HandlerFunc(messageHandler.SendHandler))).Methods("POST")
 	router.Handle("/api/messages", middleware.Middleware(http.HandlerFunc(messages.GetHandler))).Methods("GET")
+	router.HandleFunc("/websocket", websocketHandler.HandleWebSocket)
 	router.Handle("/api/posts", middleware.Middleware(http.HandlerFunc(posts.PublishPostHandler))).Methods("POST")
 	router.Handle("/api/posts", middleware.Middleware(http.HandlerFunc(posts.GetPostsHandler))).Methods("GET")
 	router.Handle("/api/posts/comments", middleware.Middleware(http.HandlerFunc(comments.PublishCommentHandler))).Methods("POST")
