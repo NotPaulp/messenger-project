@@ -8,6 +8,7 @@ import (
 	"messenger-project/internal/repository"
 	"messenger-project/internal/websocket"
 	"messenger-project/pkg/config"
+	"time"
 
 	"github.com/segmentio/kafka-go"
 )
@@ -53,9 +54,27 @@ func (c *Consumer) Start(ctx context.Context) {
 				continue
 			}
 
-			log.Printf("Message processed and saved: %s -> %s", message.SenderUsername, message.ReceiverUsername)
-			if c.websocketHub != nil {
-				c.websocketHub.BroadcastToUser(message.ReceiverUsername, message)
+			log.Printf("Message processed and saved: %s -> %s",
+				message.SenderUsername, message.ReceiverUsername)
+
+			if c.websocketHub == nil {
+				continue
+			}
+
+			if err := c.websocketHub.BroadcastToUser(message.ReceiverUsername, message); err != nil {
+				log.Printf("Error broadcasting message to user %s: %v",
+					message.ReceiverUsername, err)
+				continue
+			}
+
+			toUpdate := map[string]any{
+				"status":            1,
+				"status_updated_at": time.Now(),
+			}
+
+			if err := repository.UpdateMessageStatus(message.ID, toUpdate); err != nil {
+				log.Printf("Error updating message %d status to sent in database: %v",
+					message.ID, err)
 			}
 		}
 	}()

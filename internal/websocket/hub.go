@@ -2,6 +2,7 @@ package websocket
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"messenger-project/internal/models"
 	"net/http"
@@ -66,26 +67,30 @@ func (h *Hub) Run() {
 	}
 }
 
-func (h *Hub) BroadcastToUser(username string, message models.Message) {
+func (h *Hub) BroadcastToUser(username string, message models.Message) error {
 	h.mutex.RLock()
 	client, exists := h.clients[username]
 	h.mutex.RUnlock()
 
-	if exists {
-		data, err := json.Marshal(message)
-		if err != nil {
-			log.Printf("Error marshaling message for websocket: %v", err)
-			return
-		}
+	if !exists {
+		return fmt.Errorf("user %s is not connected", username)
+	}
 
-		select {
-		case client.send <- data:
-		default:
-			close(client.send)
-			h.mutex.Lock()
-			delete(h.clients, username)
-			h.mutex.Unlock()
-		}
+	data, err := json.Marshal(message)
+	if err != nil {
+		log.Printf("Error marshaling message for websocket: %v", err)
+		return fmt.Errorf("marshal message: %w", err)
+	}
+
+	select {
+	case client.send <- data:
+		return nil
+	default:
+		close(client.send)
+		h.mutex.Lock()
+		delete(h.clients, username)
+		h.mutex.Unlock()
+		return fmt.Errorf("client %s send buffer full or disconnected", username)
 	}
 }
 
@@ -131,19 +136,10 @@ func (c *Client) writePump() {
 		c.conn.Close()
 	}()
 
-	for {
-		select {
-		case message, ok := <-c.send:
-			if !ok {
-				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
-				return
-			}
-
-			err := c.conn.WriteMessage(websocket.TextMessage, message)
-			if err != nil {
-				log.Printf("WebSocket write error: %v", err)
-				return
-			}
+	for message := range c.send {
+		if err := c.conn.WriteMessage(websocket.TextMessage, message); err != nil {
+			log.Printf("WebSocket write error: %v", err)
+			return
 		}
 	}
 }

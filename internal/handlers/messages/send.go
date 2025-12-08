@@ -43,6 +43,9 @@ func (h *MessageHandler) SendHandler(w http.ResponseWriter, r *http.Request) {
 		ReceiverUsername: req.ReceiverUsername,
 		Body:             req.Body,
 		SentAt:           time.Now(),
+		Status:           0,
+		StatusUpdatedAt:  time.Now(),
+		Retries:          0,
 	}
 
 	if err := h.producer.ProduceMessage(r.Context(), &msg); err != nil {

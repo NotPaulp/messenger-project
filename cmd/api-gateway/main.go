@@ -12,6 +12,7 @@ import (
 	"messenger-project/internal/handlers/posts"
 	"messenger-project/internal/kafka"
 	"messenger-project/internal/redis"
+	"messenger-project/internal/retry"
 	"messenger-project/internal/websocket"
 	"messenger-project/pkg/config"
 	"messenger-project/pkg/logger"
@@ -37,10 +38,11 @@ func main() {
 	}
 
 	database.CreateTableUsers(db)
-	// database.CreateTableMessages(db)
+
 	redis.Init()
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	if err := database.InitMongo(ctx); err != nil {
 		log.Error("Mongo Error: " + err.Error())
 		os.Exit(1)
@@ -50,11 +52,14 @@ func main() {
 	websocketHub := websocket.NewHub()
 	go websocketHub.Run()
 
+	retryService := retry.NewRetryService(websocketHub)
+	go retryService.Start(ctx)
+
 	kafkaProducer := kafka.NewProducer(cfg)
 	defer kafkaProducer.Close()
 
 	kafkaConsumer := kafka.NewConsumer(cfg, websocketHub)
-	go kafkaConsumer.Start(context.Background())
+	go kafkaConsumer.Start(ctx)
 	defer kafkaConsumer.Close()
 
 	messageHandler := messages.NewMessageHandler(kafkaProducer)
@@ -99,9 +104,12 @@ func main() {
 	<-c
 
 	log.Info("Shutting down server...")
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	server.Shutdown(ctx)
+	cancel()
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer shutdownCancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Error("Server shutdown error:" + err.Error())
+	}
 	log.Info("Server stopped")
 }
 

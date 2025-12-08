@@ -32,25 +32,38 @@ func GetHandler(w http.ResponseWriter, r *http.Request) {
 
 	all := strings.ToLower(allStr) == "true"
 	if all {
-		msgs, err := repository.GetAllMessages(senderUsername, receiverUsername)
+		where := map[string]any{
+			"sender_username":   senderUsername,
+			"receiver_username": receiverUsername,
+		}
+		msgs, err := repository.GetAllMessagesWhere(where)
 		if err != nil {
 			http.Error(w, "Error retrieving messages: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-
+		for _, msg := range msgs {
+			toUpdate := map[string]any{
+				"status": 1,
+			}
+			repository.UpdateMessageStatus(msg.ID, toUpdate)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(map[string]any{
 			"message": "Messages retrieved successfully",
-			"msg":     msgs,
+			"msgs":    msgs,
 		})
+		return
 	}
 	msg, err := repository.GetLastMessage(senderUsername, receiverUsername)
 	if err != nil {
 		http.Error(w, "Error retrieving the last message: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-
+	toUpdate := map[string]any{
+		"status": 1,
+	}
+	repository.UpdateMessageStatus(msg.ID, toUpdate)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]any{
@@ -61,6 +74,8 @@ func GetHandler(w http.ResponseWriter, r *http.Request) {
 			ReceiverUsername: msg.ReceiverUsername,
 			Body:             msg.Body,
 			SentAt:           msg.SentAt,
+			Status:           msg.Status,
+			StatusUpdatedAt:  msg.StatusUpdatedAt,
 		}},
 	})
 }
