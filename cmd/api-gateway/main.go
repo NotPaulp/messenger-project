@@ -11,6 +11,7 @@ import (
 	"messenger-project/internal/handlers/messages"
 	"messenger-project/internal/handlers/posts"
 	"messenger-project/internal/kafka"
+	mlanalyze "messenger-project/internal/ml-analyze"
 	"messenger-project/internal/redis"
 	"messenger-project/internal/retry"
 	"messenger-project/internal/websocket"
@@ -54,6 +55,8 @@ func main() {
 
 	retryService := retry.NewRetryService(websocketHub)
 	go retryService.Start(ctx)
+
+	go mlanalyze.Start(ctx)
 
 	kafkaProducer := kafka.NewProducer(cfg)
 	defer kafkaProducer.Close()

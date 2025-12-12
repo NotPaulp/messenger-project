@@ -46,6 +46,9 @@ func (h *MessageHandler) SendHandler(w http.ResponseWriter, r *http.Request) {
 		Status:           0,
 		StatusUpdatedAt:  time.Now(),
 		Retries:          0,
+		Category:         "",
+		Toxic:            false,
+		ToxicityScore:    0.0,
 	}
 
 	if err := h.producer.ProduceMessage(r.Context(), &msg); err != nil {
