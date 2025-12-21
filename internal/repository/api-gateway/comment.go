@@ -1,4 +1,4 @@
-package repository
+package api_gateway
 
 import (
 	"context"

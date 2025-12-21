@@ -4,7 +4,7 @@ import (
 	"context"
 	"log"
 	"messenger-project/internal/models"
-	"messenger-project/internal/repository"
+	repository "messenger-project/internal/repository/api-gateway"
 	"messenger-project/internal/websocket"
 	"time"
 )
@@ -57,7 +57,7 @@ func (s *RetryService) processPending() {
 				"status":            models.StatusFailed,
 				"status_updated_at": time.Now(),
 			}
-			if err := repository.UpdateMessageStatus(message.ID, toUpdate); err != nil {
+			if err := repository.UpdateMessageByID(message.ID, toUpdate); err != nil {
 				log.Printf("RetryService: error marking message %d as failed: %v", message.ID, err)
 			}
 			continue
@@ -76,7 +76,7 @@ func (s *RetryService) processPending() {
 				toUpdate["status_updated_at"] = time.Now()
 			}
 
-			if err := repository.UpdateMessageStatus(message.ID, toUpdate); err != nil {
+			if err := repository.UpdateMessageByID(message.ID, toUpdate); err != nil {
 				log.Printf("RetryService: error updating retries for message %d: %v", message.ID, err)
 			}
 
@@ -89,7 +89,7 @@ func (s *RetryService) processPending() {
 			"status_updated_at": time.Now(),
 		}
 
-		if err := repository.UpdateMessageStatus(message.ID, toUpdate); err != nil {
+		if err := repository.UpdateMessageByID(message.ID, toUpdate); err != nil {
 			log.Printf("RetryService: error marking message %d as sent: %v", message.ID, err)
 		}
 	}

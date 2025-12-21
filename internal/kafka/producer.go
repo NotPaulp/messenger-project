@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"messenger-project/internal/models"
-	"messenger-project/pkg/config"
 	"time"
 
 	"github.com/segmentio/kafka-go"
@@ -15,10 +14,10 @@ type Producer struct {
 	writer *kafka.Writer
 }
 
-func NewProducer(cfg *config.Config) *Producer {
+func NewProducer(brokers string, topic string) *Producer {
 	writer := &kafka.Writer{
-		Addr:         kafka.TCP(cfg.KAFKA_BROKERS),
-		Topic:        cfg.KAFKA_TOPIC_MESSAGES,
+		Addr:         kafka.TCP(brokers),
+		Topic:        topic,
 		Balancer:     &kafka.LeastBytes{},
 		BatchTimeout: 10 * time.Millisecond,
 	}

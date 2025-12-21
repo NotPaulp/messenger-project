@@ -1,10 +1,12 @@
-package repository
+package api_gateway
 
 import (
 	"context"
 	"fmt"
 	"messenger-project/internal/database"
+	"messenger-project/internal/grpc"
 	"messenger-project/internal/models"
+
 	"sort"
 	"time"
 
@@ -14,17 +16,16 @@ import (
 )
 
 func CreatePost(post *models.Post) error {
-	_, err := GetUserByUsername(post.AuthorUsername)
-	if err != nil {
-		return err
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	exists, err := grpc.GlobalClient.UserExists(ctx, post.AuthorUsername)
+	if err != nil || !exists {
+		return fmt.Errorf("author %s does not exist", post.AuthorUsername)
 	}
 
 	if database.PostsCollection == nil {
 		return fmt.Errorf("posts collection not initialized")
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 
 	_, err = database.PostsCollection.InsertOne(ctx, post)
 	if err != nil {

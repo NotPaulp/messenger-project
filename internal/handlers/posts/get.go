@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	common "messenger-project/internal/handlers/common"
-	"messenger-project/internal/repository"
+	posts "messenger-project/internal/repository/api-gateway"
 )
 
 func GetPostsHandler(w http.ResponseWriter, r *http.Request) {
@@ -31,7 +31,7 @@ func GetPostsHandler(w http.ResponseWriter, r *http.Request) {
 	all := strings.ToLower(allStr) == "true"
 
 	if all {
-		posts, err := repository.GetAllPosts(qAuthor)
+		posts, err := posts.GetAllPosts(qAuthor)
 		if err != nil {
 			http.Error(w, "Error retrieving posts: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -46,7 +46,7 @@ func GetPostsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	post, err := repository.GetLastPost(qAuthor)
+	post, err := posts.GetLastPost(qAuthor)
 	if err != nil {
 		http.Error(w, "Error retrieving last post: "+err.Error(), http.StatusInternalServerError)
 		return

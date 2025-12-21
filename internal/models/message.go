@@ -23,6 +23,7 @@ type Message struct {
 	Status           int       `json:"status" bson:"status"`
 	StatusUpdatedAt  time.Time `json:"status_updated_at" bson:"status_updated_at"`
 	Retries          int       `json:"retries" bson:"retries"`
+	AnalyzedAt       time.Time `json:"analyzed_at" bson:"analyzed_at"`
 }
 
 type SendMessageRequest struct {

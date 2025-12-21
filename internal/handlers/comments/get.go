@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	common "messenger-project/internal/handlers/common"
-	"messenger-project/internal/repository"
+	comments "messenger-project/internal/repository/api-gateway"
 )
 
 func GetCommentsHandler(w http.ResponseWriter, r *http.Request) {
@@ -39,7 +39,7 @@ func GetCommentsHandler(w http.ResponseWriter, r *http.Request) {
 	all := strings.ToLower(allStr) == "true"
 
 	if all {
-		comments, err := repository.GetComments(postID)
+		comments, err := comments.GetComments(postID)
 		if err != nil {
 			http.Error(w, "Error retrieving comments: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -54,7 +54,7 @@ func GetCommentsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	comment, err := repository.GetLastComment(postID)
+	comment, err := comments.GetLastComment(postID)
 	if err != nil {
 		http.Error(w, "Error retrieving last comment: "+err.Error(), http.StatusInternalServerError)
 		return

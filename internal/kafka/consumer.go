@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"messenger-project/internal/models"
-	"messenger-project/internal/repository"
+	messages "messenger-project/internal/repository/api-gateway"
 	"messenger-project/internal/websocket"
 	"messenger-project/pkg/config"
 	"time"
@@ -31,7 +31,7 @@ func NewConsumer(cfg *config.Config, hub *websocket.Hub) *Consumer {
 	}
 }
 
-func (c *Consumer) Start(ctx context.Context) {
+func (c *Consumer) Start(ctx context.Context, mlanalyzerproducer *Producer) {
 	go func() {
 		for {
 			msg, err := c.reader.ReadMessage(ctx)
@@ -49,10 +49,12 @@ func (c *Consumer) Start(ctx context.Context) {
 				continue
 			}
 
-			if err := repository.CreateMessage(&message); err != nil {
+			if err := messages.CreateMessage(&message); err != nil {
 				log.Printf("Error saving message to database: %v", err)
 				continue
 			}
+
+			mlanalyzerproducer.ProduceMessage(ctx, &message)
 
 			log.Printf("Message processed and saved: %s -> %s",
 				message.SenderUsername, message.ReceiverUsername)
@@ -72,7 +74,7 @@ func (c *Consumer) Start(ctx context.Context) {
 				"status_updated_at": time.Now(),
 			}
 
-			if err := repository.UpdateMessageStatus(message.ID, toUpdate); err != nil {
+			if err := messages.UpdateMessageByID(message.ID, toUpdate); err != nil {
 				log.Printf("Error updating message %d status to sent in database: %v",
 					message.ID, err)
 			}

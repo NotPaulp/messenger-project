@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	common "messenger-project/internal/handlers/common"
 	"messenger-project/internal/models"
-	"messenger-project/internal/repository"
+	posts "messenger-project/internal/repository/api-gateway"
 	"net/http"
 	"time"
 )
@@ -35,7 +35,7 @@ func PublishPostHandler(w http.ResponseWriter, r *http.Request) {
 		PublishedAt:    time.Now(),
 	}
 
-	if err := repository.CreatePost(&post); err != nil {
+	if err := posts.CreatePost(&post); err != nil {
 		http.Error(w, "Error publishing the post: "+err.Error(), http.StatusInternalServerError)
 		return
 	}

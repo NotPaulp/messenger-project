@@ -1,4 +1,4 @@
-package repository
+package user_service
 
 import (
 	"fmt"

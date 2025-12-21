@@ -6,12 +6,11 @@ import (
 	"log"
 	middleware "messenger-project/internal/auth"
 	"messenger-project/internal/database"
-	"messenger-project/internal/handlers/auth"
+	"messenger-project/internal/grpc"
 	"messenger-project/internal/handlers/comments"
 	"messenger-project/internal/handlers/messages"
 	"messenger-project/internal/handlers/posts"
 	"messenger-project/internal/kafka"
-	mlanalyze "messenger-project/internal/ml-analyze"
 	"messenger-project/internal/redis"
 	"messenger-project/internal/retry"
 	"messenger-project/internal/websocket"
@@ -30,16 +29,6 @@ func main() {
 	cfg := config.Load()
 	log := logger.New(cfg.DebugMode)
 
-	db, err := database.InitPostgres()
-	if err != nil {
-		log.Error("DB Error:" + err.Error())
-		os.Exit(1)
-	} else {
-		defer db.Close()
-	}
-
-	database.CreateTableUsers(db)
-
 	redis.Init()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -50,19 +39,20 @@ func main() {
 	}
 	defer database.DisconnectMongo(ctx)
 
+	grpc.GlobalClient = grpc.NewClient()
+
 	websocketHub := websocket.NewHub()
 	go websocketHub.Run()
 
 	retryService := retry.NewRetryService(websocketHub)
 	go retryService.Start(ctx)
 
-	go mlanalyze.Start(ctx)
-
-	kafkaProducer := kafka.NewProducer(cfg)
+	kafkaProducer := kafka.NewProducer(cfg.KAFKA_BROKERS, cfg.KAFKA_TOPIC_MESSAGES)
 	defer kafkaProducer.Close()
 
 	kafkaConsumer := kafka.NewConsumer(cfg, websocketHub)
-	go kafkaConsumer.Start(ctx)
+	mlanalyzeKafkaProducer := kafka.NewProducer(cfg.KAFKA_BROKERS, cfg.KAFKA_TOPIC_ML_ANALYZE_MESSAGES)
+	go kafkaConsumer.Start(ctx, mlanalyzeKafkaProducer)
 	defer kafkaConsumer.Close()
 
 	messageHandler := messages.NewMessageHandler(kafkaProducer)
@@ -71,9 +61,6 @@ func main() {
 	router := mux.NewRouter()
 	router.Use(loggingMiddleware)
 	router.HandleFunc("/health", healthHandler).Methods("GET")
-	router.HandleFunc("/api/register", auth.RegisterHandler).Methods("POST")
-	router.HandleFunc("/api/login", auth.LoginHandler).Methods("POST")
-	router.HandleFunc("/api/logout", auth.LogoutHandler).Methods("POST")
 	router.Handle("/api/messages", middleware.Middleware(http.HandlerFunc(messageHandler.SendHandler))).Methods("POST")
 	router.Handle("/api/messages", middleware.Middleware(http.HandlerFunc(messages.GetHandler))).Methods("GET")
 	router.HandleFunc("/websocket", websocketHandler.HandleWebSocket)

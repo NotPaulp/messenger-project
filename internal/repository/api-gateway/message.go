@@ -1,4 +1,4 @@
-package repository
+package api_gateway
 
 import (
 	"context"
@@ -8,23 +8,24 @@ import (
 	"sort"
 	"time"
 
+	"messenger-project/internal/grpc"
+
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func CreateMessage(msg *models.Message) error {
-	_, err := GetUserByUsername(msg.ReceiverUsername)
-	if err != nil {
-		return err
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	exists, err := grpc.GlobalClient.UserExists(ctx, msg.ReceiverUsername)
+	if err != nil || !exists {
+		return fmt.Errorf("receiver %s does not exist", msg.ReceiverUsername)
 	}
 
 	if database.MessagesCollection == nil {
 		return fmt.Errorf("messages collection not initialized")
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 
 	_, err = database.MessagesCollection.InsertOne(ctx, msg)
 	if err != nil {
@@ -33,7 +34,7 @@ func CreateMessage(msg *models.Message) error {
 	return nil
 }
 
-func UpdateMessageStatus(messageID int64, toUpdate map[string]any) error {
+func UpdateMessageByID(messageID int64, toUpdate map[string]any) error {
 	if database.MessagesCollection == nil {
 		return fmt.Errorf("messages collection not initialized")
 	}

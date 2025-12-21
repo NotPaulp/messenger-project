@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	common "messenger-project/internal/handlers/common"
 	"messenger-project/internal/models"
-	"messenger-project/internal/repository"
+	posts "messenger-project/internal/repository/api-gateway"
 	"net/http"
 )
 
@@ -32,7 +32,7 @@ func DeleteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := repository.DeletePost(req.PostID, username)
+	err := posts.DeletePost(req.PostID, username)
 	if err != nil {
 		http.Error(w, "Error deleting post: "+err.Error(), http.StatusInternalServerError)
 		return

@@ -6,67 +6,126 @@ import (
 	"fmt"
 	"log"
 	"messenger-project/internal/handlers/openrouter"
-	"messenger-project/internal/repository"
+	"messenger-project/internal/models"
+	messages "messenger-project/internal/repository/api-gateway"
+	"messenger-project/pkg/config"
+	"messenger-project/pkg/logger"
 	"strings"
 	"time"
+
+	"github.com/segmentio/kafka-go"
 )
 
-func Start(ctx context.Context) {
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
+type MLAnalyzer struct {
+	kafkaConsumer *kafka.Reader
+	config        *config.Config
+	logger        *logger.Logger
+}
+
+func NewMLAnalyzer(
+	kafkaConsumer *kafka.Reader,
+	cfg *config.Config,
+	log *logger.Logger,
+) *MLAnalyzer {
+	return &MLAnalyzer{
+		kafkaConsumer: kafkaConsumer,
+		config:        cfg,
+		logger:        log,
+	}
+}
+
+func (a *MLAnalyzer) Start(ctx context.Context) {
+	if a.logger == nil { // ✅ Safety check
+		a.logger = logger.New(a.config.DebugMode)
+	}
+	a.logger.Info("Starting ML Analyzer service...")
 
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("MLAnalyzerService: context canceled, stopping")
+			a.logger.Info("Context canceled, stopping ML Analyzer")
 			return
 
-		case <-ticker.C:
-			analyze()
+		default:
+			msg, err := a.kafkaConsumer.ReadMessage(ctx)
+			if err != nil {
+				if err == context.Canceled || err == context.DeadlineExceeded {
+					a.logger.Info("Context closed, stopping")
+					return
+				}
+				a.logger.Error("Error reading message from Kafka: %v", err)
+				continue
+			}
+
+			var message models.Message
+			if err := json.Unmarshal(msg.Value, &message); err != nil {
+				a.logger.Error("Error unmarshaling message: %v", err)
+				continue
+			}
+
+			a.logger.Error("Processing message ID=%d from %s to %s",
+				message.ID, message.SenderUsername, message.ReceiverUsername)
+
+			analysis, err := a.analyzeMessage(message)
+			if err != nil {
+				a.logger.Error("Error analyzing message %d: %v", message.ID, err)
+				continue
+			}
+
+			if err := a.publishAnalysisResult(analysis); err != nil {
+				a.logger.Error("Error publishing analysis result: %v", err)
+				continue
+			}
+
+			a.logger.Info("Analysis completed for message %d: category=%s, toxicity=%.2f",
+				message.ID, analysis.Category, analysis.ToxicityScore)
 		}
 	}
 }
 
-func analyze() {
-	where := map[string]any{
-		"category": "",
-	}
-	messages, err := repository.GetAllMessagesWhere(where)
+func (a *MLAnalyzer) analyzeMessage(msg models.Message) (*models.AnalysisResult, error) {
+	category, err := categorizeMessage(msg.Body)
 	if err != nil {
-		log.Printf("MLAnalyzerService: error getting messages: %v", err)
-		return
+		a.logger.Error("Categorization error for message %d: %v, using fallback", msg.ID, err)
+		category = "general"
 	}
 
-	if len(messages) == 0 {
-		return
+	toxicityScore, err := evaluateToxicity(msg.Body)
+	if err != nil {
+		a.logger.Error("Toxicity evaluation error for message %d: %v, using fallback", msg.ID, err)
+		toxicityScore = 0.0
 	}
 
-	log.Printf("MLAnalyzerService: found %d messages to process", len(messages))
+	isToxic := toxicityScore > 0.7
 
-	for _, message := range messages {
-		category, err := categorizeMessage(message.Body)
-
-		if err != nil {
-			log.Printf("MLAnalyzerService: error categorizing message %d: %v", message.ID, err)
-			continue
-		}
-
-		toxicityScore, err := evaluateToxicity(message.Body)
-		if err != nil {
-			log.Printf("MLAnalyzerService: error evaluating toxicity for message %d: %v", message.ID, err)
-			continue
-		}
-
-		toUpdate := map[string]any{
-			"category":       category,
-			"toxicity_score": toxicityScore,
-			"toxic":          toxicityScore > 0.7,
-		}
-
-		if err := repository.UpdateMessageStatus(message.ID, toUpdate); err != nil {
-			log.Printf("MLAnalyzerService: error setting category and toxicity for message %d: %v", message.ID, err)
-		}
+	result := &models.AnalysisResult{
+		MessageID:      msg.ID,
+		Category:       category,
+		ToxicityScore:  toxicityScore,
+		IsToxic:        isToxic,
+		AnalyzedAt:     time.Now(),
+		SenderUsername: msg.SenderUsername,
 	}
+
+	return result, nil
+}
+
+func (a *MLAnalyzer) publishAnalysisResult(
+	result *models.AnalysisResult,
+) error {
+
+	updateData := map[string]any{
+		"category":       result.Category,
+		"toxicity_score": result.ToxicityScore,
+		"toxic":          result.IsToxic,
+		"analyzed_at":    result.AnalyzedAt,
+	}
+	if err := messages.UpdateMessageByID(result.MessageID, updateData); err != nil {
+		return fmt.Errorf("error updating message in MongoDB: %w", err)
+	}
+
+	a.logger.Info("Published analysis result for message %d to Mongo", result.MessageID)
+	return nil
 }
 
 const (

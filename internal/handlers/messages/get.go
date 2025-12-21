@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	common "messenger-project/internal/handlers/common"
 	"messenger-project/internal/models"
-	"messenger-project/internal/repository"
+	messages "messenger-project/internal/repository/api-gateway"
 	"net/http"
 	"strings"
 )
@@ -36,7 +36,7 @@ func GetHandler(w http.ResponseWriter, r *http.Request) {
 			"sender_username":   senderUsername,
 			"receiver_username": receiverUsername,
 		}
-		msgs, err := repository.GetAllMessagesWhere(where)
+		msgs, err := messages.GetAllMessagesWhere(where)
 		if err != nil {
 			http.Error(w, "Error retrieving messages: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -45,7 +45,7 @@ func GetHandler(w http.ResponseWriter, r *http.Request) {
 			toUpdate := map[string]any{
 				"status": 1,
 			}
-			repository.UpdateMessageStatus(msg.ID, toUpdate)
+			messages.UpdateMessageByID(msg.ID, toUpdate)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
@@ -55,7 +55,7 @@ func GetHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	msg, err := repository.GetLastMessage(senderUsername, receiverUsername)
+	msg, err := messages.GetLastMessage(senderUsername, receiverUsername)
 	if err != nil {
 		http.Error(w, "Error retrieving the last message: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -63,7 +63,7 @@ func GetHandler(w http.ResponseWriter, r *http.Request) {
 	toUpdate := map[string]any{
 		"status": 1,
 	}
-	repository.UpdateMessageStatus(msg.ID, toUpdate)
+	messages.UpdateMessageByID(msg.ID, toUpdate)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]any{

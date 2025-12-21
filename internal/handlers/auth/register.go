@@ -5,7 +5,7 @@ import (
 	"messenger-project/internal/auth"
 	"messenger-project/internal/handlers/common"
 	"messenger-project/internal/models"
-	"messenger-project/internal/repository"
+	users "messenger-project/internal/repository/user-service"
 
 	"messenger-project/pkg/utils"
 	"net/http"
@@ -54,7 +54,7 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt: time.Now(),
 	}
 
-	err = repository.CreateUser(&user)
+	err = users.CreateUser(&user)
 	if err != nil {
 		http.Error(w, "Error creating user: "+err.Error(), http.StatusInternalServerError)
 		return

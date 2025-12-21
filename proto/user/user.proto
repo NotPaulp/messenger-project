@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package user;
+option go_package = "messenger-project/proto/user";
+
+service UserService {
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+}
+
+message GetUserRequest {
+  string username = 1;
+}
+
+message GetUserResponse {
+  string id = 1;
+  string username = 2;
+  string email = 3;
+  bool exists = 4;  
+}
+
+message UserError {
+  string message = 1;
+}

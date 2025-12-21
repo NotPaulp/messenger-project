@@ -5,7 +5,7 @@ import (
 	"messenger-project/internal/auth"
 	"messenger-project/internal/handlers/common"
 	"messenger-project/internal/models"
-	"messenger-project/internal/repository"
+	users "messenger-project/internal/repository/user-service"
 	"net/http"
 )
 
@@ -25,7 +25,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := repository.GetUserByUsername(req.Username)
+	user, err := users.GetUserByUsername(req.Username)
 	if err != nil {
 		http.Error(w, "Error while getting the user out of the database", http.StatusInternalServerError)
 		return

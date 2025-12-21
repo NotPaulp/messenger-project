@@ -1,12 +1,12 @@
 
 services:
   api-gateway:
-    build: .
+    build:
+      context: .
+      dockerfile: cmd/api-gateway/Dockerfile
     ports:
       - "${SERVER_PORT}:${SERVER_PORT}"
     depends_on:
-      postgres:
-        condition: service_healthy
       kafka:
         condition: service_started
       zookeeper:
@@ -15,11 +15,50 @@ services:
         condition: service_started
       redis:
         condition: service_started
+      user-service:
+        condition: service_healthy
     # volumes:
     #   - .:/app
     env_file:
       - .env
 
+  user-service:
+    build:
+      context: .
+      dockerfile: cmd/user-service/Dockerfile
+    ports:
+      - "${USER_SERVICE_PORT}:${USER_SERVICE_PORT}"
+      - "${GRPC_PORT}:${GRPC_PORT}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 8083 || exit 1"]  # ✅ Wait for gRPC port
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    env_file:
+      - .env
+
+  ml-analyzer:
+    build:
+      context: .
+      dockerfile: cmd/ml-analyzer/Dockerfile
+    ports:
+      - "${ML_ANALYZER_PORT}:${ML_ANALYZER_PORT}"
+    depends_on:
+      kafka:
+        condition: service_started
+      zookeeper:
+        condition: service_healthy
+      mongo:
+        condition: service_started
+    env_file:
+      - .env
+    
   postgres:
     image: postgres:13
     environment:
@@ -44,12 +83,22 @@ services:
       - mongo_data:/data/db
     ports:
       - "27017:27017"
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --eval 'db.adminCommand(\"ping\")' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   zookeeper:
     image: wurstmeister/zookeeper:latest

@@ -7,7 +7,7 @@ import (
 
 	common "messenger-project/internal/handlers/common"
 	"messenger-project/internal/models"
-	"messenger-project/internal/repository"
+	comments "messenger-project/internal/repository/api-gateway"
 )
 
 func PublishCommentHandler(w http.ResponseWriter, r *http.Request) {
@@ -37,7 +37,7 @@ func PublishCommentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var err error
-	if comment, err = repository.AddCommentAndReturn(req.PostID, comment); err != nil {
+	if comment, err = comments.AddCommentAndReturn(req.PostID, comment); err != nil {
 		http.Error(w, "Error adding comment: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
