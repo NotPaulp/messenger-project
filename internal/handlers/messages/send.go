@@ -19,7 +19,7 @@ func NewMessageHandler(producer *kafka.Producer) *MessageHandler {
 	}
 }
 
-func (h *MessageHandler) SendHandler(w http.ResponseWriter, r *http.Request) {
+func (h *MessageHandler) Send(w http.ResponseWriter, r *http.Request) {
 	senderUsername, ok := r.Context().Value("username").(string)
 	if !ok || senderUsername == "" {
 		http.Error(w, "Unauthorized: username not found in token", http.StatusUnauthorized)

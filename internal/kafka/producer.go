@@ -27,29 +27,46 @@ func NewProducer(brokers string, topic string) *Producer {
 	}
 }
 
-func (producer *Producer) ProduceMessage(ctx context.Context, message *models.Message) error {
-	value, err := json.Marshal(message)
+type Content interface {
+	GetKafkaKey() string
+}
+
+func (producer *Producer) ProduceMessage(ctx context.Context, content Content) error {
+	value, err := json.Marshal(content)
 	if err != nil {
 		return fmt.Errorf("failed to marshal message: %w", err)
 	}
 
+	contentType := getContentType(content)
 	msg := kafka.Message{
-		Key:   []byte(message.ReceiverUsername),
+		Key:   []byte(content.GetKafkaKey()),
 		Value: value,
 		Headers: []kafka.Header{
 			{
-				Key:   "sender_username",
-				Value: []byte(message.SenderUsername),
+				Key:   "content_type",
+				Value: []byte(contentType),
 			},
 		},
 	}
 
-	err = producer.writer.WriteMessages(ctx, msg)
-	if err != nil {
+	if err := producer.writer.WriteMessages(ctx, msg); err != nil {
 		return fmt.Errorf("failed to write message to kafka: %w", err)
 	}
 
 	return nil
+}
+
+func getContentType(c Content) string {
+	switch any(c).(type) {
+	case *models.Message:
+		return "message"
+	case *models.Post:
+		return "post"
+	case *models.Comment:
+		return "comment"
+	default:
+		return "unknown"
+	}
 }
 
 func (p *Producer) Close() error {

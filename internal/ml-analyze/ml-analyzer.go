@@ -7,7 +7,7 @@ import (
 	"log"
 	"messenger-project/internal/handlers/openrouter"
 	"messenger-project/internal/models"
-	messages "messenger-project/internal/repository/api-gateway"
+	api_gateway "messenger-project/internal/repository/api-gateway"
 	"messenger-project/pkg/config"
 	"messenger-project/pkg/logger"
 	"strings"
@@ -35,7 +35,7 @@ func NewMLAnalyzer(
 }
 
 func (a *MLAnalyzer) Start(ctx context.Context) {
-	if a.logger == nil { // ✅ Safety check
+	if a.logger == nil {
 		a.logger = logger.New(a.config.DebugMode)
 	}
 	a.logger.Info("Starting ML Analyzer service...")
@@ -56,34 +56,105 @@ func (a *MLAnalyzer) Start(ctx context.Context) {
 				a.logger.Error("Error reading message from Kafka: %v", err)
 				continue
 			}
-
-			var message models.Message
-			if err := json.Unmarshal(msg.Value, &message); err != nil {
-				a.logger.Error("Error unmarshaling message: %v", err)
-				continue
+			contentType := ""
+			for _, h := range msg.Headers {
+				if h.Key == "content_type" {
+					contentType = string(h.Value)
+					break
+				}
 			}
 
-			a.logger.Error("Processing message ID=%d from %s to %s",
-				message.ID, message.SenderUsername, message.ReceiverUsername)
-
-			analysis, err := a.analyzeMessage(message)
-			if err != nil {
-				a.logger.Error("Error analyzing message %d: %v", message.ID, err)
-				continue
+			switch contentType {
+			case "message":
+				a.handleMessageAnalysis(msg.Value)
+			case "post":
+				a.handlePostAnalysis(msg.Value)
+			case "comment":
+				a.handleCommentAnalysis(msg.Value)
+			default:
+				a.logger.Error("Unknown content type: %s", contentType)
 			}
 
-			if err := a.publishAnalysisResult(analysis); err != nil {
-				a.logger.Error("Error publishing analysis result: %v", err)
-				continue
-			}
-
-			a.logger.Info("Analysis completed for message %d: category=%s, toxicity=%.2f",
-				message.ID, analysis.Category, analysis.ToxicityScore)
 		}
 	}
 }
 
-func (a *MLAnalyzer) analyzeMessage(msg models.Message) (*models.AnalysisResult, error) {
+func (a *MLAnalyzer) handleMessageAnalysis(value []byte) {
+	var message models.Message
+	if err := json.Unmarshal(value, &message); err != nil {
+		a.logger.Error("Error unmarshaling message: %v", err)
+		return
+	}
+
+	a.logger.Info("Processing message ID=%d from %s to %s",
+		message.ID, message.SenderUsername, message.ReceiverUsername)
+
+	msgAnalysis, err := a.analyzeMessage(message)
+	if err != nil {
+		a.logger.Error("Error analyzing message %d: %v", message.ID, err)
+		return
+	}
+
+	if err := a.publishMessageAnalysisResult(msgAnalysis); err != nil {
+		a.logger.Error("Error publishing message analysis result: %v", err)
+		return
+	}
+
+	a.logger.Info("Analysis completed for message %d: category=%s, toxicity=%.2f",
+		message.ID, msgAnalysis.Category, msgAnalysis.ToxicityScore)
+}
+
+func (a *MLAnalyzer) handlePostAnalysis(value []byte) {
+	var post models.Post
+	if err := json.Unmarshal(value, &post); err != nil {
+		a.logger.Error("Error unmarshaling post: %v", err)
+		return
+	}
+
+	a.logger.Info("Processing post ID=%d from %s",
+		post.ID, post.AuthorUsername)
+
+	postAnalysis, err := a.analyzePost(post)
+	if err != nil {
+		a.logger.Error("Error analyzing post %d: %v", post.ID, err)
+		return
+	}
+
+	if err := a.publishPostAnalysisResult(postAnalysis); err != nil {
+		a.logger.Error("Error publishing post analysis result: %v", err)
+		return
+	}
+
+	a.logger.Info("Analysis completed for post %d: categories=%v",
+		post.ID, postAnalysis.Categories)
+}
+
+func (a *MLAnalyzer) handleCommentAnalysis(value []byte) {
+	var comment models.Comment
+	if err := json.Unmarshal(value, &comment); err != nil {
+		a.logger.Error("Error unmarshaling comment: %v", err)
+		return
+	}
+
+	a.logger.Info("Processing comment ID=%d on post %d from %s",
+		comment.ID, comment.PostID, comment.AuthorUsername)
+
+	commentAnalysis, err := a.analyzeComment(comment)
+	if err != nil {
+		a.logger.Error("Error analyzing comment %d: %v", comment.ID, err)
+		return
+	}
+
+	if err := a.publishCommentAnalysisResult(commentAnalysis); err != nil {
+		a.logger.Error("Error publishing comment analysis result: %v", err)
+		return
+	}
+
+	a.logger.Info("Analysis completed for comment %d: spam=%v, toxicity=%.2f",
+		comment.ID, commentAnalysis.Spam, commentAnalysis.ToxicityScore)
+}
+
+func (a *MLAnalyzer) analyzeMessage(msg models.Message) (*models.MessageAnalysisResult, error) {
 	category, err := categorizeMessage(msg.Body)
 	if err != nil {
 		a.logger.Error("Categorization error for message %d: %v, using fallback", msg.ID, err)
@@ -98,7 +169,7 @@ func (a *MLAnalyzer) analyzeMessage(msg models.Message) (*models.AnalysisResult,
 
 	isToxic := toxicityScore > 0.7
 
-	result := &models.AnalysisResult{
+	result := &models.MessageAnalysisResult{
 		MessageID:      msg.ID,
 		Category:       category,
 		ToxicityScore:  toxicityScore,
@@ -110,8 +181,49 @@ func (a *MLAnalyzer) analyzeMessage(msg models.Message) (*models.AnalysisResult,
 	return result, nil
 }
 
-func (a *MLAnalyzer) publishAnalysisResult(
-	result *models.AnalysisResult,
+func (a *MLAnalyzer) analyzePost(post models.Post) (*models.PostAnalysisResult, error) {
+	categories, err := categorizePost(post.Body)
+	if err != nil {
+		a.logger.Error("Categorization error for post %d: %v, using fallback", post.ID, err)
+		categories = []string{"general"}
+	}
+	result := &models.PostAnalysisResult{
+		PostID:         post.ID,
+		Categories:     categories,
+		AnalyzedAt:     time.Now(),
+		AuthorUsername: post.AuthorUsername,
+	}
+	return result, nil
+}
+
+func (a *MLAnalyzer) analyzeComment(comment models.Comment) (*models.CommentAnalysisResult, error) {
+	spam, err := detectSpamInComment(comment.Body)
+	if err != nil {
+		a.logger.Error("Spam detection error for comment %d: %v, using fallback", comment.ID, err)
+		spam = false
+	}
+
+	comment.ToxicityScore, err = evaluateToxicity(comment.Body)
+	if err != nil {
+		a.logger.Error("Toxicity evaluation error for comment %d: %v, using fallback", comment.ID, err)
+		comment.ToxicityScore = 0.0
+	}
+	isToxic := comment.ToxicityScore > 0.7
+
+	result := &models.CommentAnalysisResult{
+		CommentID:      comment.ID,
+		PostID:         comment.PostID,
+		ToxicityScore:  comment.ToxicityScore,
+		IsToxic:        isToxic,
+		Spam:           spam,
+		AnalyzedAt:     time.Now(),
+		AuthorUsername: comment.AuthorUsername,
+	}
+	return result, nil
+}
+
+func (a *MLAnalyzer) publishMessageAnalysisResult(
+	result *models.MessageAnalysisResult,
 ) error {
 
 	updateData := map[string]any{
@@ -120,7 +232,7 @@ func (a *MLAnalyzer) publishAnalysisResult(
 		"toxic":          result.IsToxic,
 		"analyzed_at":    result.AnalyzedAt,
 	}
-	if err := messages.UpdateMessageByID(result.MessageID, updateData); err != nil {
+	if err := api_gateway.UpdateMessageByID(result.MessageID, updateData); err != nil {
 		return fmt.Errorf("error updating message in MongoDB: %w", err)
 	}
 
@@ -128,8 +240,40 @@ func (a *MLAnalyzer) publishAnalysisResult(
 	return nil
 }
 
+func (a *MLAnalyzer) publishPostAnalysisResult(
+	result *models.PostAnalysisResult,
+) error {
+
+	updateData := map[string]any{
+		"categories":  result.Categories,
+		"analyzed_at": result.AnalyzedAt,
+	}
+	if err := api_gateway.UpdatePostByID(result.PostID, updateData); err != nil {
+		return fmt.Errorf("error updating post in MongoDB: %w", err)
+	}
+	a.logger.Info("Published analysis result for post %d to Mongo", result.PostID)
+	return nil
+}
+
+func (a *MLAnalyzer) publishCommentAnalysisResult(
+	result *models.CommentAnalysisResult,
+) error {
+
+	updateData := map[string]any{
+		"spam":           result.Spam,
+		"toxicity_score": result.ToxicityScore,
+		"toxic":          result.IsToxic,
+		"analyzed_at":    result.AnalyzedAt,
+	}
+	if err := api_gateway.UpdateCommentByID(result.PostID, result.CommentID, updateData); err != nil {
+		return fmt.Errorf("error updating comment in MongoDB: %w", err)
+	}
+	a.logger.Info("Published analysis result for comment %d to Mongo", result.CommentID)
+	return nil
+}
+
 const (
-	CategorizationPrompt = `
+	MessageCategorizationPrompt = `
 You are a text classification model.
 
 Task:
@@ -150,7 +294,7 @@ Message:
 You are a toxicity scoring model.
 
 Task:
-Given a short user message, evaluate its toxicity on a scale from 0.0 (not toxic) to 1.0 (extremely toxic).
+Given a short user message/comment, evaluate its toxicity on a scale from 0.0 (not toxic) to 1.0 (extremely toxic).
 
 Rules:
 - Output MUST be valid JSON in this exact format:
@@ -160,6 +304,38 @@ Rules:
 Message:
 "%s"
 `
+
+	PostCategorizationPrompt = `
+You are a text classification model.
+
+Task:
+Given a blog post content, assign it to one or more categories from this list:
+technology, health, lifestyle, finance, travel, food, education, entertainment, sports, politics, science, fashion, general.
+
+Rules:
+- Answer in English.
+- Output MUST be valid JSON in this exact format:
+{"categories": ["<category1>", "<category2>", ...]}
+- Do NOT add any other text before or after the JSON.
+
+Post Content:
+"%s"
+`
+
+	CommentSpamDetectionPrompt = `
+You are a spam detection model.
+
+Task:
+Given a user comment, determine if it is spam or not.
+
+Rules:
+- Output MUST be valid JSON in this exact format:
+{"spam": true} or {"spam": false}
+- Do NOT add any other text before or after the JSON.
+
+Comment:
+"%s"
+`
 )
 
 type categoryJSON struct {
@@ -167,8 +343,8 @@ type categoryJSON struct {
 }
 
 func categorizeMessage(body string) (string, error) {
-	prompt := fmt.Sprintf(CategorizationPrompt, body)
-	resp, err := openrouter.CallOpenRouter("You are a classifier for chat messages.", prompt)
+	prompt := fmt.Sprintf(MessageCategorizationPrompt, body)
+	resp, err := openrouter.CallOpenRouter("You are a classifier for chat api_gateway", prompt)
 	if err != nil {
 		return "", err
 	}
@@ -184,6 +360,28 @@ func categorizeMessage(body string) (string, error) {
 		return "", fmt.Errorf("MLAnalyzerService: empty category in response")
 	}
 	return cat, nil
+}
+
+type categoriesJSON struct {
+	Categories []string `json:"categories"`
+}
+
+func categorizePost(body string) ([]string, error) {
+	prompt := fmt.Sprintf(PostCategorizationPrompt, body)
+	resp, err := openrouter.CallOpenRouter("You are a classifier for blog posts.", prompt)
+	if err != nil {
+		return nil, err
+	}
+	resp = strings.TrimSpace(resp)
+	log.Printf("MLAnalyzerService: categorization response for post '%s': %s", body, resp)
+	var cj categoriesJSON
+	if err := json.Unmarshal([]byte(resp), &cj); err != nil {
+		return nil, fmt.Errorf("MLAnalyzerService: JSON parse error in post categorization: %w", err)
+	}
+	if len(cj.Categories) == 0 {
+		return nil, fmt.Errorf("MLAnalyzerService: empty categories in response")
+	}
+	return cj.Categories, nil
 }
 
 type toxicityJSON struct {
@@ -204,4 +402,24 @@ func evaluateToxicity(body string) (float32, error) {
 		return 0, fmt.Errorf("MLAnalyzerService: JSON parse error in toxicity: %w", err)
 	}
 	return tj.Toxicity, nil
+}
+
+type spamJSON struct {
+	Spam bool `json:"spam"`
+}
+
+func detectSpamInComment(body string) (bool, error) {
+	prompt := fmt.Sprintf(CommentSpamDetectionPrompt, body)
+	resp, err := openrouter.CallOpenRouter("You are a spam detection model.", prompt)
+	if err != nil {
+		return false, err
+	}
+	resp = strings.TrimSpace(resp)
+	log.Printf("MLAnalyzerService: spam detection response for comment '%s': %s", body, resp)
+
+	var sj spamJSON
+	if err := json.Unmarshal([]byte(resp), &sj); err != nil {
+		return false, fmt.Errorf("MLAnalyzerService: JSON parse error in spam detection: %w", err)
+	}
+	return sj.Spam, nil
 }

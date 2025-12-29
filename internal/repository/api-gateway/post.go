@@ -34,6 +34,34 @@ func CreatePost(post *models.Post) error {
 	return nil
 }
 
+func UpdatePostByID(postID int64, updateData map[string]any) error {
+	if database.PostsCollection == nil {
+		return fmt.Errorf("posts collection not initialized")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	filter := bson.M{
+		"id": postID,
+	}
+
+	update := bson.M{
+		"$set": updateData,
+	}
+
+	result, err := database.PostsCollection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("update post: %w", err)
+	}
+
+	if result.ModifiedCount == 0 {
+		return fmt.Errorf("post not found with id %d", postID)
+	}
+
+	return nil
+}
+
 func GetLastPost(authorUsername string) (*models.Post, error) {
 	if database.PostsCollection == nil {
 		return nil, fmt.Errorf("posts collection not initialized")

@@ -6,9 +6,18 @@ import (
 
 type Comment struct {
 	ID             int64     `json:"id" bson:"id"`
+	PostID         int64     `json:"post_id" bson:"post_id"`
 	AuthorUsername string    `json:"author_username" bson:"author_username"`
 	Body           string    `json:"body" bson:"body"`
 	PublishedAt    time.Time `json:"published_at" bson:"published_at"`
+	Spam           bool      `json:"spam" bson:"spam"`
+	Toxic          bool      `json:"toxic" bson:"toxic"`
+	ToxicityScore  float32   `json:"toxicity_score" bson:"toxicity_score"`
+	AnalyzedAt     time.Time `json:"analyzed_at" bson:"analyzed_at"`
+}
+
+func (c *Comment) GetKafkaKey() string {
+	return c.AuthorUsername
 }
 
 type PublishCommentRequest struct {

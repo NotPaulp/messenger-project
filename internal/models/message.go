@@ -26,6 +26,10 @@ type Message struct {
 	AnalyzedAt       time.Time `json:"analyzed_at" bson:"analyzed_at"`
 }
 
+func (m *Message) GetKafkaKey() string {
+	return m.ReceiverUsername
+}
+
 type SendMessageRequest struct {
 	ReceiverUsername string `json:"receiver_username"`
 	Body             string `json:"body"`

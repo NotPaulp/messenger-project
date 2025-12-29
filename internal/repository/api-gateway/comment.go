@@ -12,7 +12,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func AddCommentAndReturn(postID int64, comment *models.Comment) (*models.Comment, error) {
+func AddCommentAndReturn(comment *models.Comment) (*models.Comment, error) {
 	if database.PostsCollection == nil {
 		return nil, fmt.Errorf("posts collection not initialized")
 	}
@@ -20,7 +20,7 @@ func AddCommentAndReturn(postID int64, comment *models.Comment) (*models.Comment
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	filter := bson.M{"id": postID}
+	filter := bson.M{"id": comment.PostID}
 	update := bson.M{"$push": bson.M{"comments": comment}}
 
 	findOpts := options.FindOneAndUpdate().
@@ -34,17 +34,55 @@ func AddCommentAndReturn(postID int64, comment *models.Comment) (*models.Comment
 	err := database.PostsCollection.FindOneAndUpdate(ctx, filter, update, findOpts).Decode(&result)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			return nil, fmt.Errorf("no post found with id %d", postID)
+			return nil, fmt.Errorf("no post found with id %d", comment.PostID)
 		}
 		return nil, fmt.Errorf("add comment and return: %w", err)
 	}
 
 	if len(result.Comments) == 0 {
-		return nil, fmt.Errorf("comment not returned after update for post %d", postID)
+		return nil, fmt.Errorf("comment not returned after update for post %d", comment.PostID)
 	}
 
 	last := result.Comments[len(result.Comments)-1]
 	return &last, nil
+}
+
+func UpdateCommentByID(postID, commentID int64, updateData map[string]any) error {
+	if database.PostsCollection == nil {
+		return fmt.Errorf("posts collection not initialized")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	updateBson := bson.M{}
+	for key, value := range updateData {
+		updateBson["comments.$."+key] = value
+	}
+
+	filter := bson.M{
+		"id": postID,
+		"comments": bson.M{
+			"$elemMatch": bson.M{
+				"id": commentID,
+			},
+		},
+	}
+
+	update := bson.M{
+		"$set": updateBson,
+	}
+
+	result, err := database.PostsCollection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("update comment: %w", err)
+	}
+
+	if result.ModifiedCount == 0 {
+		return fmt.Errorf("comment not found on post %d", postID)
+	}
+
+	return nil
 }
 
 func GetComments(postID int64) ([]models.Comment, error) {

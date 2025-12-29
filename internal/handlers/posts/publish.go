@@ -3,13 +3,23 @@ package posts
 import (
 	"encoding/json"
 	common "messenger-project/internal/handlers/common"
+	"messenger-project/internal/kafka"
 	"messenger-project/internal/models"
-	posts "messenger-project/internal/repository/api-gateway"
 	"net/http"
 	"time"
 )
 
-func PublishPostHandler(w http.ResponseWriter, r *http.Request) {
+type PostHandler struct {
+	producer *kafka.Producer
+}
+
+func NewPostHandler(producer *kafka.Producer) *PostHandler {
+	return &PostHandler{
+		producer: producer,
+	}
+}
+
+func (h *PostHandler) Publish(w http.ResponseWriter, r *http.Request) {
 	authorUsername, ok := r.Context().Value("username").(string)
 	if !ok || authorUsername == "" {
 		http.Error(w, "Unauthorized: username not found in token", http.StatusUnauthorized)
@@ -35,7 +45,7 @@ func PublishPostHandler(w http.ResponseWriter, r *http.Request) {
 		PublishedAt:    time.Now(),
 	}
 
-	if err := posts.CreatePost(&post); err != nil {
+	if err := h.producer.ProduceMessage(r.Context(), &post); err != nil {
 		http.Error(w, "Error publishing the post: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
